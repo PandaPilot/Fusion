@@ -1,4 +1,4 @@
-#include "../../Fusion/Fusion.h"
+#include "../../src/Fusion.h"
 #include <stdbool.h>
 #include <stdio.h>
 

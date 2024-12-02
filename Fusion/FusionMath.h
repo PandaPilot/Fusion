@@ -341,6 +341,13 @@ static inline FusionQuaternion FusionQuaternionAdd(const FusionQuaternion quater
     return result;
 }
 
+static inline void FusionQuaternionAssign(FusionQuaternion* target, const FusionQuaternion* original) {
+    target->element.w = original->element.w;
+    target->element.x = original->element.x;
+    target->element.y = original->element.y;
+    target->element.z = original->element.z;
+}
+
 /**
  * @brief Returns the multiplication of two quaternions.
  * @param quaternionA Quaternion A (to be post-multiplied).
