@@ -48,7 +48,7 @@ void FusionAhrsInitialise(FusionAhrs *const ahrs) {
             .convention = FusionConventionNwu,
             .gain = 0.5f,
             .gyroscopeRange = 0.0f,
-            .accelerationRejection = 90.0f,
+            .accelerationRejection = 99.0f,
             .magneticRejection = 90.0f,
             .recoveryTriggerPeriod = 0,
     };

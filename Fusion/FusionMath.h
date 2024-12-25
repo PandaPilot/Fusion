@@ -348,6 +348,41 @@ static inline void FusionQuaternionAssign(FusionQuaternion* target, const Fusion
     target->element.z = original->element.z;
 }
 
+static inline void FusionQuaternionReorientYaw90(FusionQuaternion* quaternion) {
+    float tempX = quaternion->element.x;
+    quaternion->element.x = -quaternion->element.z;
+    quaternion->element.z = tempX;
+}
+
+static inline void FusionQuaternionReorientYawNeg90(FusionQuaternion* quaternion) {
+    float tempX = quaternion->element.x;
+    quaternion->element.x = quaternion->element.z;
+    quaternion->element.z = -tempX;
+    quaternion->element.y = -quaternion->element.y;
+}
+
+static inline void FusionQuaternionReorientYaw180(FusionQuaternion* quaternion) {
+    // Negate the x and y components of the quaternion for a 180-degree yaw rotation.
+    quaternion->element.x = -quaternion->element.x;
+    quaternion->element.y = -quaternion->element.y;
+}
+
+static inline void FusionQuaternionReorientPitch90(FusionQuaternion* quaternion) {
+    // Swap and negate the x and z components for a 90-degree pitch down rotation
+    float temp = quaternion->element.x;
+    quaternion->element.x = quaternion->element.z;
+    quaternion->element.z = -temp;
+}
+
+static inline void FusionQuaternionReorientJointIMU(FusionQuaternion* quaternion) {
+    // Apply combined 90-degree roll and -90-degree pitch rotation
+    float temp = quaternion->element.x;
+    quaternion->element.x = -quaternion->element.y;  // x = -y
+    quaternion->element.y = -quaternion->element.z;  // y = -z
+    quaternion->element.z = temp;  // z = x
+    // w remains unchanged
+}
+
 /**
  * @brief Returns the multiplication of two quaternions.
  * @param quaternionA Quaternion A (to be post-multiplied).
