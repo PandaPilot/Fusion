@@ -1,0 +1,628 @@
+/**
+ * @file FusionMath.h
+ * @author Seb Madgwick
+ * @brief Math library.
+ */
+
+#pragma once
+
+//------------------------------------------------------------------------------
+// Includes
+
+#include <cstdio>
+
+#include <math.h>  // M_PI, sqrtf, atan2f, asinf
+#include <stdbool.h>
+#include <stdint.h>
+//------------------------------------------------------------------------------
+// Definitions
+
+/**
+ * @brief 3D vector.
+ */
+typedef union {
+  float array[3];
+
+  struct {
+    float x;
+    float y;
+    float z;
+  } axis;
+} FusionVector;
+
+/**
+ * @brief Quaternion.
+ */
+typedef union {
+  float array[4];
+
+  struct {
+    float w;
+    float x;
+    float y;
+    float z;
+  } element;
+} FusionQuaternion;
+
+/**
+ * @brief 3x3 matrix in row-major order.
+ * See http://en.wikipedia.org/wiki/Row-major_order
+ */
+typedef union {
+  float array[3][3];
+
+  struct {
+    float xx;
+    float xy;
+    float xz;
+    float yx;
+    float yy;
+    float yz;
+    float zx;
+    float zy;
+    float zz;
+  } element;
+} FusionMatrix;
+
+/**
+ * @brief Euler angles.  Roll, pitch, and yaw correspond to rotations around
+ * X, Y, and Z respectively.
+ */
+typedef union {
+  float array[3];
+
+  struct {
+    float roll;
+    float pitch;
+    float yaw;
+  } angle;
+} FusionEuler;
+
+// ========================================
+//  Fusion Vector constants
+// ========================================
+static constexpr FusionVector FUSION_VECTOR_ZERO = [] {
+  FusionVector v{};
+  v.array[0] = 0.0f;
+  v.array[1] = 0.0f;
+  v.array[2] = 0.0f;
+  return v;
+}();
+
+static constexpr FusionVector FUSION_VECTOR_ONES = [] {
+  FusionVector v{};
+  v.array[0] = 1.0f;
+  v.array[1] = 1.0f;
+  v.array[2] = 1.0f;
+  return v;
+}();
+
+// ========================================
+//  Identity Quaternion
+// ========================================
+static constexpr FusionQuaternion FUSION_IDENTITY_QUATERNION = [] {
+  FusionQuaternion q{};
+  q.array[0] = 1.0f;
+  q.array[1] = 0.0f;
+  q.array[2] = 0.0f;
+  q.array[3] = 0.0f;
+  return q;
+}();
+
+// ========================================
+//  Identity Matrix (3×3)
+// ========================================
+static constexpr FusionMatrix FUSION_IDENTITY_MATRIX = [] {
+  FusionMatrix m{};
+  m.array[0][0] = 1.0f;
+  m.array[0][1] = 0.0f;
+  m.array[0][2] = 0.0f;
+  m.array[1][0] = 0.0f;
+  m.array[1][1] = 1.0f;
+  m.array[1][2] = 0.0f;
+  m.array[2][0] = 0.0f;
+  m.array[2][1] = 0.0f;
+  m.array[2][2] = 1.0f;
+  return m;
+}();
+
+// ========================================
+//  Zero Euler angles
+// ========================================
+static constexpr FusionEuler FUSION_EULER_ZERO = [] {
+  FusionEuler e{};
+  e.array[0] = 0.0f;
+  e.array[1] = 0.0f;
+  e.array[2] = 0.0f;
+  return e;
+}();
+
+/**
+ * @brief Pi. May not be defined in math.h.
+ */
+#ifndef M_PI
+#define M_PI (3.14159265358979323846)
+#endif
+
+/**
+ * @brief Include this definition or add as a preprocessor definition to use
+ * normal square root operations.
+ */
+// #define FUSION_USE_NORMAL_SQRT
+
+//------------------------------------------------------------------------------
+// Inline functions - Degrees and radians conversion
+
+/**
+ * @brief Converts degrees to radians.
+ * @param degrees Degrees.
+ * @return Radians.
+ */
+static inline float FusionDegreesToRadians(const float degrees) {
+  return degrees * ((float)M_PI / 180.0f);
+}
+
+/**
+ * @brief Converts radians to degrees.
+ * @param radians Radians.
+ * @return Degrees.
+ */
+static inline float FusionRadiansToDegrees(const float radians) {
+  return radians * (180.0f / (float)M_PI);
+}
+
+//------------------------------------------------------------------------------
+// Inline functions - Arc sine
+
+/**
+ * @brief Returns the arc sine of the value.
+ * @param value Value.
+ * @return Arc sine of the value.
+ */
+static inline float FusionAsin(const float value) {
+  if (value <= -1.0f) {
+    return (float)M_PI / -2.0f;
+  }
+  if (value >= 1.0f) {
+    return (float)M_PI / 2.0f;
+  }
+  return asinf(value);
+}
+
+//------------------------------------------------------------------------------
+// Inline functions - Fast inverse square root
+
+#ifndef FUSION_USE_NORMAL_SQRT
+
+/**
+ * @brief Calculates the reciprocal of the square root.
+ * See https://pizer.wordpress.com/2008/10/12/fast-inverse-square-root/
+ * @param x Operand.
+ * @return Reciprocal of the square root of x.
+ */
+static inline float FusionFastInverseSqrt(const float x) {
+  typedef union {
+    float f;
+    int32_t i;
+  } Union32;
+
+  Union32 union32 = { .f = x };
+  union32.i = 0x5F1F1412 - (union32.i >> 1);
+  return union32.f * (1.69000231f - 0.714158168f * x * union32.f * union32.f);
+}
+
+#endif
+
+//------------------------------------------------------------------------------
+// Inline functions - Vector operations
+
+/**
+ * @brief Returns true if the vector is zero.
+ * @param vector Vector.
+ * @return True if the vector is zero.
+ */
+static inline bool FusionVectorIsZero(const FusionVector vector) {
+  return (vector.axis.x == 0.0f) && (vector.axis.y == 0.0f) && (vector.axis.z == 0.0f);
+}
+
+/**
+ * @brief Returns the sum of two vectors.
+ * @param vectorA Vector A.
+ * @param vectorB Vector B.
+ * @return Sum of two vectors.
+ */
+static inline FusionVector FusionVectorAdd(const FusionVector vectorA, const FusionVector vectorB) {
+  const FusionVector result = { .axis = {
+                                    .x = vectorA.axis.x + vectorB.axis.x,
+                                    .y = vectorA.axis.y + vectorB.axis.y,
+                                    .z = vectorA.axis.z + vectorB.axis.z,
+                                } };
+  return result;
+}
+
+/**
+ * @brief Returns vector B subtracted from vector A.
+ * @param vectorA Vector A.
+ * @param vectorB Vector B.
+ * @return Vector B subtracted from vector A.
+ */
+static inline FusionVector FusionVectorSubtract(const FusionVector vectorA,
+                                                const FusionVector vectorB) {
+  const FusionVector result = { .axis = {
+                                    .x = vectorA.axis.x - vectorB.axis.x,
+                                    .y = vectorA.axis.y - vectorB.axis.y,
+                                    .z = vectorA.axis.z - vectorB.axis.z,
+                                } };
+  return result;
+}
+
+/**
+ * @brief Returns the sum of the elements.
+ * @param vector Vector.
+ * @return Sum of the elements.
+ */
+static inline float FusionVectorSum(const FusionVector vector) {
+  return vector.axis.x + vector.axis.y + vector.axis.z;
+}
+
+/**
+ * @brief Returns the multiplication of a vector by a scalar.
+ * @param vector Vector.
+ * @param scalar Scalar.
+ * @return Multiplication of a vector by a scalar.
+ */
+static inline FusionVector FusionVectorMultiplyScalar(const FusionVector vector,
+                                                      const float scalar) {
+  const FusionVector result = { .axis = {
+                                    .x = vector.axis.x * scalar,
+                                    .y = vector.axis.y * scalar,
+                                    .z = vector.axis.z * scalar,
+                                } };
+  return result;
+}
+
+/**
+ * @brief Calculates the Hadamard product (element-wise multiplication).
+ * @param vectorA Vector A.
+ * @param vectorB Vector B.
+ * @return Hadamard product.
+ */
+static inline FusionVector FusionVectorHadamardProduct(const FusionVector vectorA,
+                                                       const FusionVector vectorB) {
+  const FusionVector result = { .axis = {
+                                    .x = vectorA.axis.x * vectorB.axis.x,
+                                    .y = vectorA.axis.y * vectorB.axis.y,
+                                    .z = vectorA.axis.z * vectorB.axis.z,
+                                } };
+  return result;
+}
+
+/**
+ * @brief Returns the cross product.
+ * @param vectorA Vector A.
+ * @param vectorB Vector B.
+ * @return Cross product.
+ */
+static inline FusionVector FusionVectorCrossProduct(const FusionVector vectorA,
+                                                    const FusionVector vectorB) {
+#define A vectorA.axis
+#define B vectorB.axis
+  const FusionVector result = { .axis = {
+                                    .x = A.y * B.z - A.z * B.y,
+                                    .y = A.z * B.x - A.x * B.z,
+                                    .z = A.x * B.y - A.y * B.x,
+                                } };
+  return result;
+#undef A
+#undef B
+}
+
+/**
+ * @brief Returns the dot product.
+ * @param vectorA Vector A.
+ * @param vectorB Vector B.
+ * @return Dot product.
+ */
+static inline float FusionVectorDotProduct(const FusionVector vectorA, const FusionVector vectorB) {
+  return FusionVectorSum(FusionVectorHadamardProduct(vectorA, vectorB));
+}
+
+/**
+ * @brief Returns the vector magnitude squared.
+ * @param vector Vector.
+ * @return Vector magnitude squared.
+ */
+static inline float FusionVectorMagnitudeSquared(const FusionVector vector) {
+  return FusionVectorSum(FusionVectorHadamardProduct(vector, vector));
+}
+
+/**
+ * @brief Returns the vector magnitude.
+ * @param vector Vector.
+ * @return Vector magnitude.
+ */
+static inline float FusionVectorMagnitude(const FusionVector vector) {
+  return sqrtf(FusionVectorMagnitudeSquared(vector));
+}
+
+/**
+ * @brief Returns the normalised vector.
+ * @param vector Vector.
+ * @return Normalised vector.
+ */
+static inline FusionVector FusionVectorNormalise(const FusionVector vector) {
+#ifdef FUSION_USE_NORMAL_SQRT
+  const float magnitudeReciprocal = 1.0f / sqrtf(FusionVectorMagnitudeSquared(vector));
+#else
+  const float magnitudeReciprocal = FusionFastInverseSqrt(FusionVectorMagnitudeSquared(vector));
+#endif
+  return FusionVectorMultiplyScalar(vector, magnitudeReciprocal);
+}
+
+//------------------------------------------------------------------------------
+// Inline functions - Quaternion operations
+
+/**
+ * @brief Returns the sum of two quaternions.
+ * @param quaternionA Quaternion A.
+ * @param quaternionB Quaternion B.
+ * @return Sum of two quaternions.
+ */
+static inline FusionQuaternion FusionQuaternionAdd(const FusionQuaternion quaternionA,
+                                                   const FusionQuaternion quaternionB) {
+  const FusionQuaternion result = { .element = {
+                                        .w = quaternionA.element.w + quaternionB.element.w,
+                                        .x = quaternionA.element.x + quaternionB.element.x,
+                                        .y = quaternionA.element.y + quaternionB.element.y,
+                                        .z = quaternionA.element.z + quaternionB.element.z,
+                                    } };
+  return result;
+}
+
+static inline void FusionQuaternionAssign(FusionQuaternion* target,
+                                          const FusionQuaternion* original) {
+  target->element.w = original->element.w;
+  target->element.x = original->element.x;
+  target->element.y = original->element.y;
+  target->element.z = original->element.z;
+}
+
+static inline FusionQuaternion FusionQuaternionConjugate(const FusionQuaternion quaternion) {
+  FusionQuaternion result;
+  result.element.w = quaternion.element.w;
+  result.element.x = -quaternion.element.x;
+  result.element.y = -quaternion.element.y;
+  result.element.z = -quaternion.element.z;
+  return result;
+}
+
+/**
+ * @brief Returns the multiplication of two quaternions.
+ * @param quaternionA Quaternion A (to be post-multiplied).
+ * @param quaternionB Quaternion B (to be pre-multiplied).
+ * @return Multiplication of two quaternions.
+ */
+static inline FusionQuaternion FusionQuaternionMultiply(const FusionQuaternion quaternionA,
+                                                        const FusionQuaternion quaternionB) {
+#define A quaternionA.element
+#define B quaternionB.element
+  const FusionQuaternion result = { .element = {
+                                        .w = A.w * B.w - A.x * B.x - A.y * B.y - A.z * B.z,
+                                        .x = A.w * B.x + A.x * B.w + A.y * B.z - A.z * B.y,
+                                        .y = A.w * B.y - A.x * B.z + A.y * B.w + A.z * B.x,
+                                        .z = A.w * B.z + A.x * B.y - A.y * B.x + A.z * B.w,
+                                    } };
+  return result;
+#undef A
+#undef B
+}
+
+/**
+ * @brief Returns the multiplication of a quaternion with a vector.  This is a
+ * normal quaternion multiplication where the vector is treated a
+ * quaternion with a W element value of zero.  The quaternion is post-
+ * multiplied by the vector.
+ * @param quaternion Quaternion.
+ * @param vector Vector.
+ * @return Multiplication of a quaternion with a vector.
+ */
+static inline FusionQuaternion FusionQuaternionMultiplyVector(const FusionQuaternion quaternion,
+                                                              const FusionVector vector) {
+#define Q quaternion.element
+#define V vector.axis
+  const FusionQuaternion result = { .element = {
+                                        .w = -Q.x * V.x - Q.y * V.y - Q.z * V.z,
+                                        .x = Q.w * V.x + Q.y * V.z - Q.z * V.y,
+                                        .y = Q.w * V.y - Q.x * V.z + Q.z * V.x,
+                                        .z = Q.w * V.z + Q.x * V.y - Q.y * V.x,
+                                    } };
+  return result;
+#undef Q
+#undef V
+}
+
+/**
+ * @brief Returns the normalised quaternion.
+ * @param quaternion Quaternion.
+ * @return Normalised quaternion.
+ */
+static inline FusionQuaternion FusionQuaternionNormalise(const FusionQuaternion quaternion) {
+#define Q quaternion.element
+#ifdef FUSION_USE_NORMAL_SQRT
+  const float magnitudeReciprocal = 1.0f / sqrtf(Q.w * Q.w + Q.x * Q.x + Q.y * Q.y + Q.z * Q.z);
+#else
+  const float magnitudeReciprocal =
+      FusionFastInverseSqrt(Q.w * Q.w + Q.x * Q.x + Q.y * Q.y + Q.z * Q.z);
+#endif
+  const FusionQuaternion result = { .element = {
+                                        .w = Q.w * magnitudeReciprocal,
+                                        .x = Q.x * magnitudeReciprocal,
+                                        .y = Q.y * magnitudeReciprocal,
+                                        .z = Q.z * magnitudeReciprocal,
+                                    } };
+  return result;
+#undef Q
+}
+
+static inline FusionQuaternion FusionQuaternionTwist(const FusionQuaternion q,
+                                                     const FusionVector axis) {
+  // Ensure axis is unit length
+  FusionVector a = FusionVectorNormalise(axis);
+
+  // Project quaternion's vector part onto axis
+  const float dot = q.element.x * a.axis.x + q.element.y * a.axis.y + q.element.z * a.axis.z;
+
+  // Build twist quaternion
+  FusionQuaternion twist = { .element = {
+                                 .w = q.element.w,
+                                 .x = a.axis.x * dot,
+                                 .y = a.axis.y * dot,
+                                 .z = a.axis.z * dot,
+                             } };
+  // Normalize using your library's function
+  FusionQuaternion output = FusionQuaternionNormalise(twist);
+  return output;
+}
+
+/**
+ * @brief Returns the angle in degrees between two quaternions.
+ * @param q1 First quaternion.
+ * @param q2 Second quaternion.
+ * @return Angle in degrees between q1 and q2.
+ */
+static inline float FusionQuaternionAngleBetween(const FusionQuaternion q0,
+                                                 const FusionQuaternion q1) {
+  FusionQuaternion nq1 = FusionQuaternionNormalise(q0);
+  FusionQuaternion nq2 = FusionQuaternionNormalise(q1);
+  float dot = nq1.element.w * nq2.element.w + nq1.element.x * nq2.element.x +
+              nq1.element.y * nq2.element.y + nq1.element.z * nq2.element.z;
+  if (dot > 1.0f)
+    dot = 1.0f;
+  if (dot < -1.0f)
+    dot = -1.0f;
+  float angle_rad = 2.0f * acosf(dot);
+  return angle_rad;  // * (180.0f / (float)M_PI);
+}
+
+static inline float FusionQuaternionTwistAngle(const FusionQuaternion q) {
+  float w = q.element.w;
+  if (w > 1.0f)
+    w = 1.0f;
+  if (w < -1.0f)
+    w = -1.0f;
+  return 2.0f * acosf(w);  // radians
+}
+
+// Inline functions - Matrix operations
+
+/**
+ * @brief Returns the multiplication of a matrix with a vector.
+ * @param matrix Matrix.
+ * @param vector Vector.
+ * @return Multiplication of a matrix with a vector.
+ */
+static inline FusionVector FusionMatrixMultiplyVector(const FusionMatrix matrix,
+                                                      const FusionVector vector) {
+#define R matrix.element
+  const FusionVector
+      result = { .axis = {
+                     .x = R.xx * vector.axis.x + R.xy * vector.axis.y + R.xz * vector.axis.z,
+                     .y = R.yx * vector.axis.x + R.yy * vector.axis.y + R.yz * vector.axis.z,
+                     .z = R.zx * vector.axis.x + R.zy * vector.axis.y + R.zz * vector.axis.z,
+                 } };
+  return result;
+#undef R
+}
+
+//------------------------------------------------------------------------------
+// Inline functions - Conversion operations
+
+/**
+ * @brief Converts a quaternion to a rotation matrix.
+ * @param quaternion Quaternion.
+ * @return Rotation matrix.
+ */
+static inline FusionMatrix FusionQuaternionToMatrix(const FusionQuaternion quaternion) {
+#define Q quaternion.element
+  const float qwqw = Q.w * Q.w;  // calculate common terms to avoid repeated operations
+  const float qwqx = Q.w * Q.x;
+  const float qwqy = Q.w * Q.y;
+  const float qwqz = Q.w * Q.z;
+  const float qxqy = Q.x * Q.y;
+  const float qxqz = Q.x * Q.z;
+  const float qyqz = Q.y * Q.z;
+  const FusionMatrix matrix = { .element = {
+                                    .xx = 2.0f * (qwqw - 0.5f + Q.x * Q.x),
+                                    .xy = 2.0f * (qxqy - qwqz),
+                                    .xz = 2.0f * (qxqz + qwqy),
+                                    .yx = 2.0f * (qxqy + qwqz),
+                                    .yy = 2.0f * (qwqw - 0.5f + Q.y * Q.y),
+                                    .yz = 2.0f * (qyqz - qwqx),
+                                    .zx = 2.0f * (qxqz - qwqy),
+                                    .zy = 2.0f * (qyqz + qwqx),
+                                    .zz = 2.0f * (qwqw - 0.5f + Q.z * Q.z),
+                                } };
+  return matrix;
+#undef Q
+}
+
+/**
+ * @brief Converts a quaternion to ZYX Euler angles.
+ * @param quaternion Quaternion.
+ * @return Euler angles.
+ */
+static inline FusionEuler FusionQuaternionToEuler(const FusionQuaternion quaternion) {
+#define Q quaternion.element
+  const float halfMinusQySquared =
+      0.5f - Q.y * Q.y;  // calculate common terms to avoid repeated operations
+  const FusionEuler euler_rad = { .angle = {
+                                      .roll = atan2f(Q.w * Q.x + Q.y * Q.z,
+                                                     halfMinusQySquared - Q.x * Q.x),
+                                      .pitch = FusionAsin(2.0f * (Q.w * Q.y - Q.z * Q.x)),
+                                      .yaw = atan2f(Q.w * Q.z + Q.x * Q.y,
+                                                    halfMinusQySquared - Q.z * Q.z),
+                                  } };
+  return euler_rad;
+  // const FusionEuler euler_deg = { .angle = {
+  //                                 .roll = FusionRadiansToDegrees(atan2f(
+  //                                     Q.w * Q.x + Q.y * Q.z,
+  //                                     halfMinusQySquared - Q.x * Q.x)),
+  //                                 .pitch = FusionRadiansToDegrees(
+  //                                     FusionAsin(2.0f * (Q.w * Q.y - Q.z *
+  //                                     Q.x))),
+  //                                 .yaw = FusionRadiansToDegrees(atan2f(
+  //                                     Q.w * Q.z + Q.x * Q.y,
+  //                                     halfMinusQySquared - Q.z * Q.z)),
+  //                             } };
+  // return euler_deg;
+#undef Q
+}
+
+// Get heading from quaternion
+static inline float FusionQuaternionToHeading(const FusionQuaternion quaternion) {
+  // yaw (heading) from quaternion (ZYX)
+  const float siny_cosp = 2.0f * (quaternion.element.w * quaternion.element.z +
+                                  quaternion.element.x * quaternion.element.y);
+  const float cosy_cosp = 1.0f - 2.0f * (quaternion.element.y * quaternion.element.y +
+                                         quaternion.element.z * quaternion.element.z);
+  // float yaw = FusionRadiansToDegrees(std::atan2(siny_cosp, cosy_cosp));
+
+  return atan2f(siny_cosp, cosy_cosp);
+}
+
+static inline void FusionQuaternionSetHeading(FusionQuaternion& quaternion, const float heading) {
+  const float yaw = atan2f(quaternion.element.w * quaternion.element.z +
+                               quaternion.element.x * quaternion.element.y,
+                           0.5f - quaternion.element.y * quaternion.element.y -
+                               quaternion.element.z * quaternion.element.z);
+  const float halfYawMinusHeading = 0.5f * (yaw - heading);
+  const FusionQuaternion rotation = { .element = {
+                                          .w = cosf(halfYawMinusHeading),
+                                          .x = 0.0f,
+                                          .y = 0.0f,
+                                          .z = -1.0f * sinf(halfYawMinusHeading),
+                                      } };
+  quaternion = FusionQuaternionMultiply(rotation, quaternion);
+}
+//------------------------------------------------------------------------------
+// End of file
